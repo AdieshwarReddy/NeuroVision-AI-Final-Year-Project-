@@ -755,16 +755,16 @@ def main():
                             'Clinical verification required.</div>'
                         )
 
-                    pred_html = textwrap.dedent(f"""
-                    <div class="metric-card" style="border-left: 4px solid {pred_color};">
-                        <p style="color: #8b949e; margin: 0; font-size: 0.85rem;">PREDICTION</p>
-                        <h2 style="color: {pred_color}; margin: 4px 0;">{pred_name}</h2>
-                        <p style="margin: 0; font-size: 1.1rem; font-weight: 700;">{confidence:.1%} confidence</p>
-                        {gt_text}
-                        {conf_warning}
-                        <p style="color: #8b949e; font-size: 0.8rem; margin-top: 8px;">⚡ Inference: {inference_ms:.1f} ms</p>
-                    </div>
-                    """).strip()
+                    pred_html = (
+                        f'<div class="metric-card" style="border-left: 4px solid {pred_color};">'
+                        f'<p style="color: #8b949e; margin: 0; font-size: 0.85rem;">PREDICTION</p>'
+                        f'<h2 style="color: {pred_color}; margin: 4px 0;">{pred_name}</h2>'
+                        f'<p style="margin: 0; font-size: 1.1rem; font-weight: 700;">{confidence:.1%} confidence</p>'
+                        + gt_text
+                        + conf_warning
+                        + f'<p style="color: #8b949e; font-size: 0.8rem; margin-top: 8px;">⚡ Inference: {inference_ms:.1f} ms</p>'
+                        + '</div>'
+                    )
                     st.markdown(pred_html, unsafe_allow_html=True)
 
                 with col_probs:
