@@ -1,0 +1,34 @@
+# ============================================================
+# EfficientNet-B3 Main Model — Hardware-Aware Config
+# Intel Iris Xe CPU-only: smaller batch to fit in ~4-5 GB RAM
+# ============================================================
+experiment_name: "candidate_efficientnet_b3_fold1"
+model_name: "efficientnet_b3"
+pretrained: true
+dropout_rate: 0.4     # Slightly higher dropout for larger model
+
+# Input: 224x224 to reduce memory vs original 300x300
+target_size: [224, 224]
+fold: 1
+
+# Hardware-aware batch settings
+# B3 has ~12M params — batch_size=8 keeps RAM usage safe on 16GB system
+batch_size: 8
+num_workers: 0
+cache_in_memory: true
+
+# Two-stage transfer learning
+stage1_epochs: 5
+stage2_epochs: 20     # More epochs for larger model
+lr_stage1: 0.0005     # Lower LR for larger model stability
+lr_stage2: 0.00005
+weight_decay: 0.0001
+
+# Early stopping (generous patience for slow CPU convergence)
+patience: 8
+
+# Class weighting
+use_class_weights: false
+
+# Reproducibility
+random_seed: 42

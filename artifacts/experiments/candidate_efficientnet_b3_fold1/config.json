@@ -1,0 +1,22 @@
+{
+    "experiment_name": "candidate_efficientnet_b3_fold1",
+    "model_name": "efficientnet_b3",
+    "pretrained": true,
+    "dropout_rate": 0.4,
+    "target_size": [
+        224,
+        224
+    ],
+    "fold": 1,
+    "batch_size": 8,
+    "num_workers": 0,
+    "cache_in_memory": true,
+    "stage1_epochs": 5,
+    "stage2_epochs": 20,
+    "lr_stage1": 0.0005,
+    "lr_stage2": 5e-05,
+    "weight_decay": 0.0001,
+    "patience": 8,
+    "use_class_weights": false,
+    "random_seed": 42
+}

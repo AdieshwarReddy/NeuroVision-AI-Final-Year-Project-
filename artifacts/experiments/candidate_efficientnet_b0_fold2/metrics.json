@@ -1,0 +1,104 @@
+{
+    "best_epoch": 8,
+    "best_val_macro_f1": 0.9135169018923669,
+    "val_metrics": {
+        "macro_f1": 0.9135169018923669,
+        "accuracy": 0.9230769230769231,
+        "balanced_accuracy": 0.9207334094658038,
+        "weighted_f1": 0.9234238411043529,
+        "micro_f1": 0.9230769230769231,
+        "roc_auc_macro_ovr": 0.9870141014647517,
+        "expected_calibration_error": 0.026423581249390017,
+        "brier_score": 0.1107540973297352,
+        "per_class": {
+            "Meningioma": {
+                "precision": 0.8243243243243243,
+                "recall_sensitivity": 0.8591549295774648,
+                "specificity": 0.9445628997867804,
+                "f1_score": 0.8413793103448276,
+                "support": 142
+            },
+            "Glioma": {
+                "precision": 0.9809885931558935,
+                "recall_sensitivity": 0.9084507042253521,
+                "specificity": 0.9847094801223242,
+                "f1_score": 0.943327239488117,
+                "support": 284
+            },
+            "Pituitary": {
+                "precision": 0.92,
+                "recall_sensitivity": 0.9945945945945946,
+                "specificity": 0.9624413145539906,
+                "f1_score": 0.9558441558441558,
+                "support": 185
+            }
+        },
+        "confusion_matrix": [
+            [
+                122,
+                5,
+                15
+            ],
+            [
+                25,
+                258,
+                1
+            ],
+            [
+                1,
+                0,
+                184
+            ]
+        ]
+    },
+    "test_metrics": {
+        "macro_f1": 0.8558578558386802,
+        "accuracy": 0.8648208469055375,
+        "balanced_accuracy": 0.8663387448030792,
+        "weighted_f1": 0.866352364297331,
+        "micro_f1": 0.8648208469055375,
+        "roc_auc_macro_ovr": 0.9617411484010728,
+        "expected_calibration_error": 0.02987420685128204,
+        "brier_score": 0.19828891900221882,
+        "per_class": {
+            "Meningioma": {
+                "precision": 0.7098765432098766,
+                "recall_sensitivity": 0.8098591549295775,
+                "specificity": 0.9004237288135594,
+                "f1_score": 0.756578947368421,
+                "support": 142
+            },
+            "Glioma": {
+                "precision": 0.9260700389105059,
+                "recall_sensitivity": 0.8321678321678322,
+                "specificity": 0.9420731707317073,
+                "f1_score": 0.8766114180478821,
+                "support": 286
+            },
+            "Pituitary": {
+                "precision": 0.9128205128205128,
+                "recall_sensitivity": 0.956989247311828,
+                "specificity": 0.9602803738317757,
+                "f1_score": 0.9343832020997376,
+                "support": 186
+            }
+        },
+        "confusion_matrix": [
+            [
+                115,
+                15,
+                12
+            ],
+            [
+                43,
+                238,
+                5
+            ],
+            [
+                4,
+                4,
+                178
+            ]
+        ]
+    }
+}

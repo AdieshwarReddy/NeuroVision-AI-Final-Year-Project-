@@ -1,0 +1,7 @@
+{
+    "optimal_temperature": 1.5394669771194458,
+    "ece_before": 0.0604027424747858,
+    "ece_after": 0.03132115513183393,
+    "ece_improvement": 0.029081587342951874,
+    "ece_relative_improvement_pct": 48.14613732992593
+}

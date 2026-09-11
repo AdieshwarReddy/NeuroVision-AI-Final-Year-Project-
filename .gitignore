@@ -1,0 +1,45 @@
+# ==============================================================================
+# TrustBT-EfficientNet / NeuroVision AI — Git Ignore Configuration
+# ==============================================================================
+
+# ---- Virtual Environments ----
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ---- Python & Bytecode ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ---- Dataset & Raw Medical Archives (Prevent pushing >800MB Figshare data) ----
+data/raw_mat/
+data/zips/
+data/*.zip
+*.mat
+
+# ---- Large Checkpoints (>50MB GitHub warning limit) ----
+# ResNet-50 weights (~90MB) — download or reproduce via scripts/train.py
+artifacts/experiments/baseline_resnet50_fold1/best_model.pt
+# EfficientNet-B3 weights (~41MB)
+# artifacts/experiments/candidate_efficientnet_b3_fold1/best_model.pt
+
+# ---- IDE & OS Metadata ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Streamlit Local Secrets & Cache ----
+.streamlit/secrets.toml

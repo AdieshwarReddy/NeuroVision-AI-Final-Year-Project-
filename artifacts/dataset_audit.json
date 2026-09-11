@@ -1,0 +1,38 @@
+{
+    "dataset_name": "Jun Cheng Figshare Brain Tumor Dataset",
+    "dataset_doi": "10.6084/m9.figshare.1512427.v5",
+    "total_images": 3064,
+    "unique_patients": 233,
+    "corrupt_files_count": 0,
+    "corrupt_files": [],
+    "missing_fields_count": 0,
+    "missing_fields": [],
+    "image_dimensions": {
+        "unique_shapes": [
+            "512x512",
+            "256x256"
+        ],
+        "uniform_512x512": false
+    },
+    "slice_counts_by_class": {
+        "glioma": 1426,
+        "pituitary": 930,
+        "meningioma": 708
+    },
+    "patient_counts_by_class": {
+        "glioma": 89,
+        "meningioma": 82,
+        "pituitary": 62
+    },
+    "slices_per_patient_stats": {
+        "min": 1,
+        "max": 38,
+        "mean": 13.150214592274677,
+        "median": 13.0,
+        "std": 7.655779451203895
+    },
+    "mask_integrity": {
+        "all_slices_have_masks": true,
+        "mean_tumor_area_pixels": 4421.717362924282
+    }
+}

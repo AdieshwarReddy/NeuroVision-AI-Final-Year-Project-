@@ -1,0 +1,146 @@
+{
+    "n_splits": 5,
+    "random_seed": 42,
+    "folds": [
+        {
+            "fold": 1,
+            "verification": {
+                "status": "PASSED_ZERO_LEAKAGE",
+                "train_patients": 139,
+                "val_patients": 47,
+                "test_patients": 47,
+                "total_unique_patients": 233
+            },
+            "train_slices": 1837,
+            "val_slices": 614,
+            "test_slices": 613,
+            "train_class_dist": {
+                "glioma": 854,
+                "pituitary": 559,
+                "meningioma": 424
+            },
+            "val_class_dist": {
+                "glioma": 286,
+                "pituitary": 186,
+                "meningioma": 142
+            },
+            "test_class_dist": {
+                "glioma": 286,
+                "pituitary": 185,
+                "meningioma": 142
+            }
+        },
+        {
+            "fold": 2,
+            "verification": {
+                "status": "PASSED_ZERO_LEAKAGE",
+                "train_patients": 140,
+                "val_patients": 46,
+                "test_patients": 47,
+                "total_unique_patients": 233
+            },
+            "train_slices": 1839,
+            "val_slices": 611,
+            "test_slices": 614,
+            "train_class_dist": {
+                "glioma": 856,
+                "pituitary": 559,
+                "meningioma": 424
+            },
+            "val_class_dist": {
+                "glioma": 284,
+                "pituitary": 185,
+                "meningioma": 142
+            },
+            "test_class_dist": {
+                "glioma": 286,
+                "pituitary": 186,
+                "meningioma": 142
+            }
+        },
+        {
+            "fold": 3,
+            "verification": {
+                "status": "PASSED_ZERO_LEAKAGE",
+                "train_patients": 141,
+                "val_patients": 46,
+                "test_patients": 46,
+                "total_unique_patients": 233
+            },
+            "train_slices": 1840,
+            "val_slices": 613,
+            "test_slices": 611,
+            "train_class_dist": {
+                "glioma": 857,
+                "pituitary": 558,
+                "meningioma": 425
+            },
+            "val_class_dist": {
+                "glioma": 285,
+                "pituitary": 187,
+                "meningioma": 141
+            },
+            "test_class_dist": {
+                "glioma": 284,
+                "pituitary": 185,
+                "meningioma": 142
+            }
+        },
+        {
+            "fold": 4,
+            "verification": {
+                "status": "PASSED_ZERO_LEAKAGE",
+                "train_patients": 140,
+                "val_patients": 47,
+                "test_patients": 46,
+                "total_unique_patients": 233
+            },
+            "train_slices": 1838,
+            "val_slices": 613,
+            "test_slices": 613,
+            "train_class_dist": {
+                "glioma": 856,
+                "pituitary": 556,
+                "meningioma": 426
+            },
+            "val_class_dist": {
+                "glioma": 285,
+                "pituitary": 187,
+                "meningioma": 141
+            },
+            "test_class_dist": {
+                "glioma": 285,
+                "pituitary": 187,
+                "meningioma": 141
+            }
+        },
+        {
+            "fold": 5,
+            "verification": {
+                "status": "PASSED_ZERO_LEAKAGE",
+                "train_patients": 139,
+                "val_patients": 47,
+                "test_patients": 47,
+                "total_unique_patients": 233
+            },
+            "train_slices": 1838,
+            "val_slices": 613,
+            "test_slices": 613,
+            "train_class_dist": {
+                "glioma": 855,
+                "pituitary": 558,
+                "meningioma": 425
+            },
+            "val_class_dist": {
+                "glioma": 286,
+                "pituitary": 185,
+                "meningioma": 142
+            },
+            "test_class_dist": {
+                "glioma": 285,
+                "pituitary": 187,
+                "meningioma": 141
+            }
+        }
+    ]
+}

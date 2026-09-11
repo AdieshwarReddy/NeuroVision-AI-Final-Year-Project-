@@ -1,0 +1,134 @@
+[
+    {
+        "sample_idx": 0,
+        "pid": "113741",
+        "filepath": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\data\\raw_mat\\1013.mat",
+        "true_class": 2,
+        "true_name": "Pituitary",
+        "pred_class": 2,
+        "pred_name": "Pituitary",
+        "confidence": 0.9891889095306396,
+        "cam_path": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\artifacts\\experiments\\candidate_efficientnet_b0_fold2\\gradcam\\gradcam_0000_pid113741_true2_pred2.png"
+    },
+    {
+        "sample_idx": 1,
+        "pid": "113741",
+        "filepath": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\data\\raw_mat\\1014.mat",
+        "true_class": 2,
+        "true_name": "Pituitary",
+        "pred_class": 2,
+        "pred_name": "Pituitary",
+        "confidence": 0.992002010345459,
+        "cam_path": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\artifacts\\experiments\\candidate_efficientnet_b0_fold2\\gradcam\\gradcam_0001_pid113741_true2_pred2.png"
+    },
+    {
+        "sample_idx": 2,
+        "pid": "114361",
+        "filepath": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\data\\raw_mat\\1018.mat",
+        "true_class": 2,
+        "true_name": "Pituitary",
+        "pred_class": 2,
+        "pred_name": "Pituitary",
+        "confidence": 0.9848816394805908,
+        "cam_path": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\artifacts\\experiments\\candidate_efficientnet_b0_fold2\\gradcam\\gradcam_0002_pid114361_true2_pred2.png"
+    },
+    {
+        "sample_idx": 3,
+        "pid": "114361",
+        "filepath": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\data\\raw_mat\\1019.mat",
+        "true_class": 2,
+        "true_name": "Pituitary",
+        "pred_class": 2,
+        "pred_name": "Pituitary",
+        "confidence": 0.988906979560852,
+        "cam_path": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\artifacts\\experiments\\candidate_efficientnet_b0_fold2\\gradcam\\gradcam_0003_pid114361_true2_pred2.png"
+    },
+    {
+        "sample_idx": 4,
+        "pid": "114361",
+        "filepath": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\data\\raw_mat\\1020.mat",
+        "true_class": 2,
+        "true_name": "Pituitary",
+        "pred_class": 2,
+        "pred_name": "Pituitary",
+        "confidence": 0.9715474843978882,
+        "cam_path": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\artifacts\\experiments\\candidate_efficientnet_b0_fold2\\gradcam\\gradcam_0004_pid114361_true2_pred2.png"
+    },
+    {
+        "sample_idx": 5,
+        "pid": "101029",
+        "filepath": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\data\\raw_mat\\1030.mat",
+        "true_class": 2,
+        "true_name": "Pituitary",
+        "pred_class": 2,
+        "pred_name": "Pituitary",
+        "confidence": 0.9523242115974426,
+        "cam_path": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\artifacts\\experiments\\candidate_efficientnet_b0_fold2\\gradcam\\gradcam_0005_pid101029_true2_pred2.png"
+    },
+    {
+        "sample_idx": 6,
+        "pid": "101029",
+        "filepath": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\data\\raw_mat\\1031.mat",
+        "true_class": 2,
+        "true_name": "Pituitary",
+        "pred_class": 2,
+        "pred_name": "Pituitary",
+        "confidence": 0.8976377844810486,
+        "cam_path": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\artifacts\\experiments\\candidate_efficientnet_b0_fold2\\gradcam\\gradcam_0006_pid101029_true2_pred2.png"
+    },
+    {
+        "sample_idx": 7,
+        "pid": "101029",
+        "filepath": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\data\\raw_mat\\1032.mat",
+        "true_class": 2,
+        "true_name": "Pituitary",
+        "pred_class": 2,
+        "pred_name": "Pituitary",
+        "confidence": 0.9472072720527649,
+        "cam_path": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\artifacts\\experiments\\candidate_efficientnet_b0_fold2\\gradcam\\gradcam_0007_pid101029_true2_pred2.png"
+    },
+    {
+        "sample_idx": 8,
+        "pid": "101029",
+        "filepath": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\data\\raw_mat\\1033.mat",
+        "true_class": 2,
+        "true_name": "Pituitary",
+        "pred_class": 2,
+        "pred_name": "Pituitary",
+        "confidence": 0.8935058116912842,
+        "cam_path": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\artifacts\\experiments\\candidate_efficientnet_b0_fold2\\gradcam\\gradcam_0008_pid101029_true2_pred2.png"
+    },
+    {
+        "sample_idx": 9,
+        "pid": "106062",
+        "filepath": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\data\\raw_mat\\1035.mat",
+        "true_class": 2,
+        "true_name": "Pituitary",
+        "pred_class": 2,
+        "pred_name": "Pituitary",
+        "confidence": 0.8042800426483154,
+        "cam_path": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\artifacts\\experiments\\candidate_efficientnet_b0_fold2\\gradcam\\gradcam_0009_pid106062_true2_pred2.png"
+    },
+    {
+        "sample_idx": 10,
+        "pid": "106062",
+        "filepath": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\data\\raw_mat\\1036.mat",
+        "true_class": 2,
+        "true_name": "Pituitary",
+        "pred_class": 2,
+        "pred_name": "Pituitary",
+        "confidence": 0.9289661645889282,
+        "cam_path": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\artifacts\\experiments\\candidate_efficientnet_b0_fold2\\gradcam\\gradcam_0010_pid106062_true2_pred2.png"
+    },
+    {
+        "sample_idx": 11,
+        "pid": "106062",
+        "filepath": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\data\\raw_mat\\1037.mat",
+        "true_class": 2,
+        "true_name": "Pituitary",
+        "pred_class": 2,
+        "pred_name": "Pituitary",
+        "confidence": 0.8654464483261108,
+        "cam_path": "C:\\Users\\mogil\\OneDrive\\Desktop\\TrustBT-EfficientNet Final Year Proj\\artifacts\\experiments\\candidate_efficientnet_b0_fold2\\gradcam\\gradcam_0011_pid106062_true2_pred2.png"
+    }
+]
