@@ -1,5 +1,5 @@
 # TrustBT-EfficientNet
-
+Deployed link : https://neurovision-ai-adhis-brain-tumer.streamlit.app/
 **Leakage-Aware Explainable Brain Tumor MRI Classification via EfficientNet with Temperature Scaling**
 
 > Final-Year B.Tech AI/ML Research Project | NeuroVision AI Dashboard
