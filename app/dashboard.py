@@ -20,7 +20,7 @@ import json
 import time
 import textwrap
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import numpy as np
 
 # Streamlit import
@@ -312,8 +312,12 @@ def get_available_experiments() -> Dict[str, str]:
 def load_image_from_upload(uploaded_file) -> Optional[Dict[str, Any]]:
     """Loads an uploaded file (.mat, .jpg, .png) and returns image dict."""
     filename = uploaded_file.name.lower()
+    file_display_name = getattr(uploaded_file, "name", "uploaded_mri")
 
     try:
+        if hasattr(uploaded_file, "seek"):
+            uploaded_file.seek(0)
+
         if filename.endswith(".mat"):
             # Save to temp bytes and load
             mat_bytes = uploaded_file.read()
@@ -340,8 +344,14 @@ def load_image_from_upload(uploaded_file) -> Optional[Dict[str, Any]]:
             finally:
                 os.unlink(tmp_path)
 
-            return {"image": image, "label": label, "pid": str(pid).strip(),
-                    "tumor_mask": tumor_mask, "has_ground_truth": True}
+            return {
+                "name": file_display_name,
+                "image": image,
+                "label": label,
+                "pid": str(pid).strip(),
+                "tumor_mask": tumor_mask,
+                "has_ground_truth": True
+            }
 
         else:
             # PNG/JPG — check for color and convert to grayscale float
@@ -355,11 +365,18 @@ def load_image_from_upload(uploaded_file) -> Optional[Dict[str, Any]]:
 
             pil_gray = pil_img.convert("L")
             image = np.array(pil_gray, dtype=np.float32)
-            return {"image": image, "label": None, "pid": "uploaded",
-                    "tumor_mask": None, "has_ground_truth": False, "is_color": is_color}
+            return {
+                "name": file_display_name,
+                "image": image,
+                "label": None,
+                "pid": "uploaded",
+                "tumor_mask": None,
+                "has_ground_truth": False,
+                "is_color": is_color
+            }
 
     except Exception as e:
-        st.error(f"Failed to load image: {e}")
+        st.error(f"Failed to load image ({file_display_name}): {e}")
         return None
 
 
@@ -384,7 +401,7 @@ def load_image_input(source) -> Optional[Dict[str, Any]]:
                 pid = str(cjdata["PID"][0, 0][0])
                 image = cjdata["image"][0, 0].astype(np.float32)
                 tumor_mask = cjdata["tumorMask"][0, 0].astype(np.uint8)
-            return {"image": image, "label": label, "pid": str(pid).strip(),
+            return {"name": path.name, "image": image, "label": label, "pid": str(pid).strip(),
                     "tumor_mask": tumor_mask, "has_ground_truth": True}
         else:
             pil_img = Image.open(path)
@@ -396,10 +413,13 @@ def load_image_input(source) -> Optional[Dict[str, Any]]:
                     is_color = True
             pil_gray = pil_img.convert("L")
             image = np.array(pil_gray, dtype=np.float32)
-            return {"image": image, "label": None, "pid": "sample",
+            return {"name": path.name, "image": image, "label": None, "pid": "sample",
                     "tumor_mask": None, "has_ground_truth": False, "is_color": is_color}
     else:
-        return load_image_from_upload(source)
+        res = load_image_from_upload(source)
+        if res is not None and "name" not in res:
+            res["name"] = getattr(source, "name", "uploaded_mri")
+        return res
 
 
 def is_valid_mri(img_data: Dict[str, Any]) -> tuple[bool, str]:
@@ -564,6 +584,318 @@ def load_experiment_metrics(exp_dir: Path) -> Optional[Dict]:
 
 
 # ---------------------------------------------------------------------------
+# Multi-Image Processing & Rendering Helpers
+# ---------------------------------------------------------------------------
+
+def process_mri_slice(
+    source,
+    model: torch.nn.Module,
+    model_name: str,
+    target_size: tuple,
+    temperature_scaler: Optional[TemperatureScaler],
+    gradcam_class: str,
+    show_tumor_mask: bool
+) -> Dict[str, Any]:
+    """Processes a single MRI slice through preprocessing, inference, calibration, and Grad-CAM++."""
+    img_data = load_image_input(source)
+    if img_data is None:
+        return {"success": False, "name": getattr(source, "name", "MRI Slice"), "error": "Failed to read image format."}
+
+    name = img_data.get("name", getattr(source, "name", "MRI Slice"))
+
+    # OOD Validation
+    is_valid, ood_reason = is_valid_mri(img_data)
+    if not is_valid:
+        return {
+            "success": False,
+            "ood": True,
+            "name": name,
+            "error": ood_reason,
+            "img_data": img_data
+        }
+
+    # Preprocessing
+    input_tensor = preprocess_image(img_data["image"], target_size=target_size)
+
+    # Inference
+    t0 = time.time()
+    result = run_inference(model, input_tensor)
+    inference_ms = (time.time() - t0) * 1000
+    result["inference_ms"] = inference_ms
+
+    # Calibration
+    if temperature_scaler is not None:
+        logits_tensor = result["logits"].unsqueeze(0)
+        cal_probs = temperature_scaler.calibrate(logits_tensor).squeeze(0).numpy()
+        temp = temperature_scaler.get_temperature()
+    else:
+        cal_probs = result["probs"]
+        temp = 1.0
+
+    # Grad-CAM++
+    cam_class_idx = None
+    if gradcam_class != "Predicted (auto)":
+        cam_class_idx = CLASS_NAMES.index(gradcam_class)
+
+    cam, cam_pred, cam_conf = run_gradcam(model, input_tensor, model_name, cam_class_idx)
+
+    # Tumor mask
+    tumor_mask_np = None
+    if show_tumor_mask and img_data.get("tumor_mask") is not None:
+        mask = img_data["tumor_mask"]
+        mask_pil = Image.fromarray((mask * 255).astype(np.uint8))
+        mask_resized = np.array(mask_pil.resize((target_size[1], target_size[0]), Image.NEAREST)) > 127
+        tumor_mask_np = mask_resized.astype(np.uint8)
+
+    # Attention analysis
+    quadrant = "central"
+    coverage_pct = 0.0
+    if cam is not None:
+        cam_max_loc = np.unravel_index(np.argmax(cam), cam.shape)
+        h, w = cam.shape
+        quadrant = ("superior" if cam_max_loc[0] < h // 2 else "inferior") + \
+                   ("-left" if cam_max_loc[1] < w // 2 else "-right")
+        coverage_pct = float((cam > 0.5).mean() * 100)
+
+    # Figure
+    fig = None
+    if cam is not None:
+        fig = create_gradcam_figure(input_tensor, cam, tumor_mask=tumor_mask_np)
+
+    return {
+        "success": True,
+        "name": name,
+        "img_data": img_data,
+        "input_tensor": input_tensor,
+        "result": result,
+        "cal_probs": cal_probs,
+        "temp": temp,
+        "cam": cam,
+        "cam_pred": cam_pred,
+        "cam_conf": cam_conf,
+        "quadrant": quadrant,
+        "coverage_pct": coverage_pct,
+        "tumor_mask_np": tumor_mask_np,
+        "fig": fig,
+    }
+
+
+def render_slice_deep_dive(
+    slice_res: Dict[str, Any],
+    temperature_scaler: Optional[TemperatureScaler]
+):
+    """Renders the detailed 3-panel Grad-CAM++, probability bars, and analysis card for a single slice."""
+    if not slice_res.get("success", False):
+        if slice_res.get("ood", False):
+            st.error(f"🚫 Invalid Input / Out-of-Distribution for {slice_res.get('name')}")
+            st.warning(slice_res.get("error"))
+            st.info(
+                "ℹ️ **Clinical Safety Notice:** The system only processes valid T1-weighted Brain MRI scans. "
+                "Non-medical inputs are rejected to prevent hallucinated predictions."
+            )
+        else:
+            st.error(f"Failed to process {slice_res.get('name')}: {slice_res.get('error')}")
+        return
+
+    img_data = slice_res["img_data"]
+    result = slice_res["result"]
+    probs = result["probs"]
+    pred_class = result["pred_class"]
+    pred_name = result["pred_name"]
+    confidence = result["confidence"]
+    inference_ms = result.get("inference_ms", 0.0)
+    cal_probs = slice_res["cal_probs"]
+    temp = slice_res["temp"]
+    cam = slice_res["cam"]
+    quadrant = slice_res["quadrant"]
+    coverage_pct = slice_res["coverage_pct"]
+    fig = slice_res["fig"]
+
+    # ---------------------------------------------------------------
+    # Results Layout
+    # ---------------------------------------------------------------
+    col_info, col_probs, col_cal = st.columns([1.2, 1, 1])
+
+    with col_info:
+        pred_color = list(CLASS_COLORS.values())[pred_class]
+        gt_text = ""
+        if img_data.get("has_ground_truth") and img_data.get("label") is not None:
+            from src.data.loader import LABEL_MAP
+            true_idx = LABEL_MAP.get(img_data["label"], 0)
+            true_name = CLASS_NAMES[true_idx]
+            is_correct = pred_class == true_idx
+            badge = "badge-correct" if is_correct else "badge-wrong"
+            verdict = "✓ CORRECT" if is_correct else "✗ WRONG"
+            gt_text = f'<p style="color: #8b949e;">Ground Truth: <b style="color: {list(CLASS_COLORS.values())[true_idx]};">{true_name}</b> &nbsp; <span class="{badge}">{verdict}</span></p>'
+            if img_data.get("pid"):
+                gt_text += f'<p style="color: #8b949e; font-size: 0.85rem;">Patient ID: {img_data["pid"]}</p>'
+
+        conf_warning = ""
+        if confidence < 0.60:
+            conf_warning = (
+                '<div style="margin-top: 8px; padding: 6px 10px; background: rgba(245, 166, 35, 0.15); '
+                'border: 1px solid #f5a623; border-radius: 6px; color: #f5a623; font-size: 0.8rem;">'
+                '⚠️ <b>Low Confidence / Ambiguous Scan:</b> Prediction confidence is below 60%. '
+                'Clinical verification required.</div>'
+            )
+
+        pred_html = (
+            f'<div class="metric-card" style="border-left: 4px solid {pred_color};">'
+            f'<p style="color: #8b949e; margin: 0; font-size: 0.85rem;">PREDICTION &nbsp;·&nbsp; <span style="color:#f0f6fc; font-weight:600;">{slice_res["name"]}</span></p>'
+            f'<h2 style="color: {pred_color}; margin: 4px 0;">{pred_name}</h2>'
+            f'<p style="margin: 0; font-size: 1.1rem; font-weight: 700;">{confidence:.1%} confidence</p>'
+            + gt_text
+            + conf_warning
+            + f'<p style="color: #8b949e; font-size: 0.8rem; margin-top: 8px;">⚡ Inference: {inference_ms:.1f} ms</p>'
+            + '</div>'
+        )
+        st.markdown(pred_html, unsafe_allow_html=True)
+
+    with col_probs:
+        raw_card_header = textwrap.dedent("""
+        <div class="metric-card">
+            <p style="color: #8b949e; margin: 0 0 12px; font-size: 0.85rem;">RAW PROBABILITIES</p>
+        """).strip()
+        st.markdown(raw_card_header, unsafe_allow_html=True)
+        st.markdown(plot_probability_bars(probs), unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with col_cal:
+        t_badge = f'<span class="badge-info">T = {temp:.3f}</span>' if temperature_scaler is not None else ""
+        cal_card_header = textwrap.dedent(f"""
+        <div class="metric-card">
+            <p style="color: #8b949e; margin: 0 0 12px; font-size: 0.85rem;">CALIBRATED PROBABILITIES {t_badge}</p>
+        """).strip()
+        st.markdown(cal_card_header, unsafe_allow_html=True)
+        st.markdown(plot_probability_bars(cal_probs), unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # Grad-CAM panel
+    if fig is not None:
+        st.markdown("<hr class='section-divider'>", unsafe_allow_html=True)
+        st.markdown("#### 🔥 Grad-CAM++ Explainability")
+        st.pyplot(fig, use_container_width=True)
+
+        analysis_html = textwrap.dedent(f"""
+        <div class="metric-card" style="border-left: 3px solid #f5a623;">
+            <p style="color: #8b949e; margin: 0; font-size: 0.85rem;">GRAD-CAM++ ANALYSIS</p>
+            <p style="margin: 8px 0; font-size: 0.95rem;">
+                Peak activation region: <b style="color: #f5a623;">{quadrant}</b> quadrant &nbsp;·&nbsp;
+                High-attention coverage: <b style="color: #f5a623;">{coverage_pct:.1f}%</b> of image &nbsp;·&nbsp;
+                Method: <b>Grad-CAM++</b> [Chattopadhay et al., 2018]
+            </p>
+            <p style="color: #8b949e; font-size: 0.8rem; margin: 0;">
+                ⚠️ <i>Grad-CAM heatmaps are for research/educational purposes only. Not a clinical diagnostic tool.</i>
+            </p>
+        </div>
+        """).strip()
+        st.markdown(analysis_html, unsafe_allow_html=True)
+
+
+def render_batch_gallery(
+    processed_slices: List[Dict[str, Any]],
+    temperature_scaler: Optional[TemperatureScaler]
+):
+    """Renders all uploaded slices in a comparative gallery with Grad-CAM++ figures."""
+    st.markdown("### 🖼️ Batch Multi-Slice Gallery")
+    for idx, slice_res in enumerate(processed_slices):
+        if not slice_res.get("success", False):
+            st.warning(f"Slice {idx + 1} ({slice_res.get('name', 'Unknown')}): {slice_res.get('error')}")
+            continue
+
+        pred_name = slice_res["result"]["pred_name"]
+        pred_color = list(CLASS_COLORS.values())[slice_res["result"]["pred_class"]]
+        conf = slice_res["result"]["confidence"]
+        cal_conf = float(np.max(slice_res["cal_probs"]))
+        name = slice_res["name"]
+        quadrant = slice_res["quadrant"]
+        coverage_pct = slice_res["coverage_pct"]
+
+        st.markdown(f"""
+        <div style="background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 18px; margin: 18px 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div>
+                    <span style="font-weight: 700; font-size: 1.15rem; color: #f0f6fc;">Slice {idx + 1} of {len(processed_slices)}: {name}</span>
+                    <span style="color: #8b949e; margin-left: 12px; font-size: 0.85rem;">Patient ID: {slice_res['img_data'].get('pid', 'N/A')}</span>
+                </div>
+                <div>
+                    <span style="background: {pred_color}22; color: {pred_color}; border: 1px solid {pred_color}; padding: 6px 14px; border-radius: 20px; font-weight: 700; font-size: 0.95rem;">
+                        {pred_name} · {conf:.1%} (Calib: {cal_conf:.1%})
+                    </span>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        if slice_res.get("fig") is not None:
+            st.pyplot(slice_res["fig"], use_container_width=True)
+
+        st.markdown(f"""
+            <div style="color: #8b949e; font-size: 0.85rem; margin-top: 8px;">
+                Peak attention: <b style="color: #f5a623;">{quadrant}</b> quadrant &nbsp;·&nbsp;
+                Coverage: <b style="color: #f5a623;">{coverage_pct:.1f}%</b> &nbsp;·&nbsp;
+                Latency: <b>{slice_res['result'].get('inference_ms', 0):.1f} ms</b>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+def render_batch_table(processed_slices: List[Dict[str, Any]]):
+    """Renders an executive summary table of all processed slices."""
+    st.markdown("### 📋 Multi-Slice Batch Overview")
+
+    valid_slices = [s for s in processed_slices if s.get("success", False)]
+    total = len(valid_slices)
+    if total == 0:
+        st.warning("No valid slices processed.")
+        return
+
+    counts = {cls: 0 for cls in CLASS_NAMES}
+    for s in valid_slices:
+        counts[s["result"]["pred_name"]] += 1
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("Total Slices", total)
+    with c2:
+        st.metric("Glioma", counts["Glioma"])
+    with c3:
+        st.metric("Meningioma", counts["Meningioma"])
+    with c4:
+        st.metric("Pituitary", counts["Pituitary"])
+
+    rows = []
+    for idx, s in enumerate(valid_slices):
+        img_data = s["img_data"]
+        gt_name = "N/A"
+        match_str = "-"
+        if img_data.get("has_ground_truth") and img_data.get("label") is not None:
+            from src.data.loader import LABEL_MAP
+            true_idx = LABEL_MAP.get(img_data["label"], 0)
+            gt_name = CLASS_NAMES[true_idx]
+            match_str = "✓ Match" if s["result"]["pred_class"] == true_idx else "✗ Mismatch"
+
+        cal_conf = float(np.max(s["cal_probs"])) * 100
+
+        rows.append({
+            "#": idx + 1,
+            "Slice Name": s["name"],
+            "Patient ID": img_data.get("pid", "-"),
+            "Predicted Tumor": s["result"]["pred_name"],
+            "Raw Conf (%)": f"{s['result']['confidence']*100:.1f}%",
+            "Calibrated Conf (%)": f"{cal_conf:.1f}%",
+            "Peak Attention": s["quadrant"],
+            "Attention Area": f"{s['coverage_pct']:.1f}%",
+            "Ground Truth": gt_name,
+            "Status": match_str,
+            "Latency (ms)": f"{s['result'].get('inference_ms', 0):.1f}"
+        })
+
+    import pandas as pd
+    df = pd.DataFrame(rows)
+    st.dataframe(df, use_container_width=True)
+
+
+# ---------------------------------------------------------------------------
 # Main App
 # ---------------------------------------------------------------------------
 
@@ -611,11 +943,31 @@ def main():
         show_tumor_mask = st.checkbox("Show tumor mask overlay", value=True)
 
         st.markdown("<hr class='section-divider'>", unsafe_allow_html=True)
-        st.markdown("### 📂 Upload MRI Slice")
-        uploaded_file = st.file_uploader(
-            "Drop .mat, .jpg or .png",
-            type=["mat", "jpg", "jpeg", "png"]
+        st.markdown("### 📂 Upload MRI Slices")
+        uploaded_files = st.file_uploader(
+            "Drop .mat, .jpg or .png (Single or Multiple)",
+            type=["mat", "jpg", "jpeg", "png"],
+            accept_multiple_files=True
         )
+
+        st.markdown("<p style='font-size: 0.8rem; color: #8b949e; margin-top: 6px;'>Or load packaged samples:</p>", unsafe_allow_html=True)
+        col_sb1, col_sb2 = st.columns(2)
+        with col_sb1:
+            if st.button("📁 1 Sample", key="sb_btn_sample_1", help="Loads 1 Glioma MRI slice"):
+                st.session_state["active_samples"] = ["samples/glioma_sample.mat"]
+                st.rerun()
+        with col_sb2:
+            if st.button("📁 3 Samples", key="sb_btn_sample_3", help="Loads 3 MRI slices (Glioma, Meningioma, Pituitary)"):
+                st.session_state["active_samples"] = [
+                    "samples/glioma_sample.mat",
+                    "samples/meningioma_sample.mat",
+                    "samples/pituitary_sample.mat"
+                ]
+                st.rerun()
+        if "active_samples" in st.session_state and st.session_state["active_samples"]:
+            if st.button("Clear Loaded Samples", key="sb_btn_clear"):
+                st.session_state["active_samples"] = []
+                st.rerun()
 
         st.markdown("<hr class='section-divider'>", unsafe_allow_html=True)
         st.markdown("""
@@ -640,11 +992,17 @@ def main():
     # TAB 1: Live Inference
     # =======================================================================
     with tab_inference:
+        # Determine sources (uploaded files or active sample paths)
+        sources = []
+        if uploaded_files:
+            sources = list(uploaded_files)
+        elif "active_samples" in st.session_state and st.session_state["active_samples"]:
+            sources = list(st.session_state["active_samples"])
 
         if selected_exp_dir is None:
             st.warning("No trained model available. Please train a model first.")
-        elif uploaded_file is None:
-            st.info("Upload a brain tumor MRI slice (.mat from the Figshare dataset, or any .jpg/.png) to begin inference.")
+        elif not sources:
+            st.info("Upload one or multiple brain tumor MRI slices (.mat from the Figshare dataset, or any .jpg/.png) to begin inference.")
 
             # Demo instruction panel
             col1, col2, col3 = st.columns(3)
@@ -664,6 +1022,22 @@ def main():
                     </div>
                     """, unsafe_allow_html=True)
 
+            st.markdown("<hr class='section-divider'>", unsafe_allow_html=True)
+            st.markdown("#### ⚡ Quick Demo — Multi-Slice Batches")
+            cd1, cd2 = st.columns(2)
+            with cd1:
+                if st.button("📂 Load Multi-Tumor Batch (3 Slices: Glioma, Meningioma, Pituitary)", key="tab_btn_demo_3"):
+                    st.session_state["active_samples"] = [
+                        "samples/glioma_sample.mat",
+                        "samples/meningioma_sample.mat",
+                        "samples/pituitary_sample.mat"
+                    ]
+                    st.rerun()
+            with cd2:
+                if st.button("📂 Load Single Glioma Sample (1 Slice)", key="tab_btn_demo_1"):
+                    st.session_state["active_samples"] = ["samples/glioma_sample.mat"]
+                    st.rerun()
+
         else:
             # Load model
             with st.spinner("Loading model..."):
@@ -673,159 +1047,90 @@ def main():
             if model is None:
                 st.error("Failed to load model. Check if best_model.pt exists.")
             else:
-                # Load image
-                img_data = load_image_from_upload(uploaded_file)
-                if img_data is None:
-                    st.stop()
-
-                # OOD Detection Check
-                is_valid, ood_reason = is_valid_mri(img_data)
-                if not is_valid:
-                    st.error("🚫 Invalid Input / Out-of-Distribution Detected")
-                    st.warning(ood_reason)
-                    st.info(
-                        "ℹ️ **Clinical Safety Notice:** The system only processes valid T1-weighted Brain MRI scans. "
-                        "Non-medical inputs (e.g., clocks, photographs, non-cranial images) are rejected to prevent hallucinated predictions."
-                    )
-                    st.stop()
-
-                # Get config
                 config_path = Path(selected_exp_dir) / "config.json"
                 with open(config_path) as f:
                     cfg = json.load(f)
                 model_name = cfg.get("model_name", "efficientnet_b0")
                 target_size = tuple(cfg.get("target_size", [224, 224]))
 
-                # Preprocess
-                input_tensor = preprocess_image(img_data["image"], target_size=target_size)
-
-                # Inference
-                with st.spinner("Running inference..."):
-                    t0 = time.time()
-                    result = run_inference(model, input_tensor)
-                    inference_ms = (time.time() - t0) * 1000
-
-                probs = result["probs"]
-                pred_class = result["pred_class"]
-                pred_name = result["pred_name"]
-                confidence = result["confidence"]
-
-                # Apply temperature scaling if available
-                if temperature_scaler is not None:
-                    logits_tensor = result["logits"].unsqueeze(0)
-                    cal_probs = temperature_scaler.calibrate(logits_tensor).squeeze(0).numpy()
-                    temp = temperature_scaler.get_temperature()
-                else:
-                    cal_probs = probs
-                    temp = 1.0
-
-                # Grad-CAM class selection
-                cam_class_idx = None
-                if gradcam_class != "Predicted (auto)":
-                    cam_class_idx = CLASS_NAMES.index(gradcam_class)
-
-                with st.spinner("Generating Grad-CAM++..."):
-                    cam, cam_pred, cam_conf = run_gradcam(model, input_tensor, model_name, cam_class_idx)
-
-                # ---------------------------------------------------------------
-                # Results Layout
-                # ---------------------------------------------------------------
-                col_info, col_probs, col_cal = st.columns([1.2, 1, 1])
-
-                with col_info:
-                    pred_color = list(CLASS_COLORS.values())[pred_class]
-                    gt_text = ""
-                    if img_data["has_ground_truth"] and img_data["label"] is not None:
-                        from src.data.loader import LABEL_MAP
-                        true_idx = LABEL_MAP.get(img_data["label"], 0)
-                        true_name = CLASS_NAMES[true_idx]
-                        is_correct = pred_class == true_idx
-                        badge = "badge-correct" if is_correct else "badge-wrong"
-                        verdict = "✓ CORRECT" if is_correct else "✗ WRONG"
-                        gt_text = f'<p style="color: #8b949e;">Ground Truth: <b style="color: {list(CLASS_COLORS.values())[true_idx]};">{true_name}</b> &nbsp; <span class="{badge}">{verdict}</span></p>'
-                        if img_data["pid"]:
-                            gt_text += f'<p style="color: #8b949e; font-size: 0.85rem;">Patient ID: {img_data["pid"]}</p>'
-
-                    conf_warning = ""
-                    if confidence < 0.60:
-                        conf_warning = (
-                            '<div style="margin-top: 8px; padding: 6px 10px; background: rgba(245, 166, 35, 0.15); '
-                            'border: 1px solid #f5a623; border-radius: 6px; color: #f5a623; font-size: 0.8rem;">'
-                            '⚠️ <b>Low Confidence / Ambiguous Scan:</b> Prediction confidence is below 60%. '
-                            'Clinical verification required.</div>'
+                # Process all slices
+                with st.spinner(f"Analyzing {len(sources)} MRI slice{'s' if len(sources) > 1 else ''}..."):
+                    processed_slices = []
+                    for s in sources:
+                        res = process_mri_slice(
+                            s,
+                            model=model,
+                            model_name=model_name,
+                            target_size=target_size,
+                            temperature_scaler=temperature_scaler,
+                            gradcam_class=gradcam_class,
+                            show_tumor_mask=show_tumor_mask
                         )
+                        processed_slices.append(res)
 
-                    pred_html = (
-                        f'<div class="metric-card" style="border-left: 4px solid {pred_color};">'
-                        f'<p style="color: #8b949e; margin: 0; font-size: 0.85rem;">PREDICTION</p>'
-                        f'<h2 style="color: {pred_color}; margin: 4px 0;">{pred_name}</h2>'
-                        f'<p style="margin: 0; font-size: 1.1rem; font-weight: 700;">{confidence:.1%} confidence</p>'
-                        + gt_text
-                        + conf_warning
-                        + f'<p style="color: #8b949e; font-size: 0.8rem; margin-top: 8px;">⚡ Inference: {inference_ms:.1f} ms</p>'
-                        + '</div>'
-                    )
-                    st.markdown(pred_html, unsafe_allow_html=True)
-
-                with col_probs:
-                    raw_card_header = textwrap.dedent("""
-                    <div class="metric-card">
-                        <p style="color: #8b949e; margin: 0 0 12px; font-size: 0.85rem;">RAW PROBABILITIES</p>
-                    """).strip()
-                    st.markdown(raw_card_header, unsafe_allow_html=True)
-                    st.markdown(plot_probability_bars(probs), unsafe_allow_html=True)
-                    st.markdown("</div>", unsafe_allow_html=True)
-
-                with col_cal:
-                    t_badge = f'<span class="badge-info">T = {temp:.3f}</span>' if temperature_scaler is not None else ""
-                    cal_card_header = textwrap.dedent(f"""
-                    <div class="metric-card">
-                        <p style="color: #8b949e; margin: 0 0 12px; font-size: 0.85rem;">CALIBRATED PROBABILITIES {t_badge}</p>
-                    """).strip()
-                    st.markdown(cal_card_header, unsafe_allow_html=True)
-                    st.markdown(plot_probability_bars(cal_probs), unsafe_allow_html=True)
-                    st.markdown("</div>", unsafe_allow_html=True)
-
-                # Grad-CAM panel
-                if cam is not None:
-                    st.markdown("<hr class='section-divider'>", unsafe_allow_html=True)
-                    st.markdown("#### 🔥 Grad-CAM++ Explainability")
-
-                    tumor_mask_np = None
-                    if show_tumor_mask and img_data.get("tumor_mask") is not None:
-                        from PIL import Image as PILImage
-                        import torchvision.transforms.functional as TF
-                        mask = img_data["tumor_mask"]
-                        mask_pil = PILImage.fromarray((mask * 255).astype(np.uint8))
-                        mask_resized = np.array(mask_pil.resize((target_size[1], target_size[0]),
-                                                                PILImage.NEAREST)) > 127
-                        tumor_mask_np = mask_resized.astype(np.uint8)
-
-                    fig = create_gradcam_figure(input_tensor, cam, tumor_mask=tumor_mask_np)
-                    st.pyplot(fig, use_container_width=True)
-                    plt.close(fig)
-
-                    # Hotspot interpretation
-                    cam_max_loc = np.unravel_index(np.argmax(cam), cam.shape)
-                    h, w = cam.shape
-                    quadrant = ("superior" if cam_max_loc[0] < h//2 else "inferior") + \
-                               ("-left" if cam_max_loc[1] < w//2 else "-right")
-                    coverage_pct = float((cam > 0.5).mean() * 100)
-
-                    analysis_html = textwrap.dedent(f"""
-                    <div class="metric-card" style="border-left: 3px solid #f5a623;">
-                        <p style="color: #8b949e; margin: 0; font-size: 0.85rem;">GRAD-CAM++ ANALYSIS</p>
-                        <p style="margin: 8px 0; font-size: 0.95rem;">
-                            Peak activation region: <b style="color: #f5a623;">{quadrant}</b> quadrant &nbsp;·&nbsp;
-                            High-attention coverage: <b style="color: #f5a623;">{coverage_pct:.1f}%</b> of image &nbsp;·&nbsp;
-                            Method: <b>Grad-CAM++</b> [Chattopadhay et al., 2018]
-                        </p>
-                        <p style="color: #8b949e; font-size: 0.8rem; margin: 0;">
-                            ⚠️ <i>Grad-CAM heatmaps are for research/educational purposes only. Not a clinical diagnostic tool.</i>
-                        </p>
+                if len(processed_slices) == 1:
+                    render_slice_deep_dive(processed_slices[0], temperature_scaler)
+                else:
+                    valid_count = sum(1 for s in processed_slices if s.get("success", False))
+                    st.markdown(f"""
+                    <div style="background: rgba(76, 132, 224, 0.12); border: 1px solid rgba(76, 132, 224, 0.35); border-radius: 12px; padding: 14px 20px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span style="font-size: 1.15rem; font-weight: 700; color: #f0f6fc;">📁 Multi-Slice Batch Mode</span>
+                            <span style="color: #8b949e; margin-left: 12px; font-size: 0.9rem;">{len(processed_slices)} Slices Uploaded &nbsp;·&nbsp; {valid_count} Processed Successfully</span>
+                        </div>
                     </div>
-                    """).strip()
-                    st.markdown(analysis_html, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
+
+                    view_mode = st.radio(
+                        "Batch View Option",
+                        options=["🔬 Single Slice Deep-Dive", "🖼️ All Slices (Batch Gallery)", "📋 Batch Summary Table"],
+                        horizontal=True
+                    )
+
+                    if view_mode == "🔬 Single Slice Deep-Dive":
+                        # Navigation for multi-slice
+                        slice_labels = []
+                        for i, s in enumerate(processed_slices):
+                            if s.get("success"):
+                                p_name = s["result"]["pred_name"]
+                                p_conf = s["result"]["confidence"] * 100
+                                slice_labels.append(f"Slice {i+1}: {s['name']} — {p_name} ({p_conf:.1f}%)")
+                            else:
+                                slice_labels.append(f"Slice {i+1}: {s['name']} — (Invalid / OOD)")
+
+                        # Current index in session state
+                        if "selected_slice_idx" not in st.session_state or st.session_state["selected_slice_idx"] >= len(processed_slices):
+                            st.session_state["selected_slice_idx"] = 0
+
+                        col_sel, col_prev, col_next = st.columns([3, 1, 1])
+                        with col_prev:
+                            st.write("")
+                            if st.button("⬅️ Previous", key="btn_prev_slice", disabled=st.session_state["selected_slice_idx"] <= 0):
+                                st.session_state["selected_slice_idx"] -= 1
+                                st.rerun()
+                        with col_next:
+                            st.write("")
+                            if st.button("Next ➡️", key="btn_next_slice", disabled=st.session_state["selected_slice_idx"] >= len(processed_slices) - 1):
+                                st.session_state["selected_slice_idx"] += 1
+                                st.rerun()
+                        with col_sel:
+                            curr_idx = st.selectbox(
+                                "Choose Slice to Inspect",
+                                options=list(range(len(processed_slices))),
+                                index=st.session_state["selected_slice_idx"],
+                                format_func=lambda i: slice_labels[i],
+                                key="sb_slice_selector"
+                            )
+                            if curr_idx != st.session_state["selected_slice_idx"]:
+                                st.session_state["selected_slice_idx"] = curr_idx
+
+                        render_slice_deep_dive(processed_slices[st.session_state["selected_slice_idx"]], temperature_scaler)
+
+                    elif view_mode == "🖼️ All Slices (Batch Gallery)":
+                        render_batch_gallery(processed_slices, temperature_scaler)
+
+                    elif view_mode == "📋 Batch Summary Table":
+                        render_batch_table(processed_slices)
 
     # =======================================================================
     # TAB 2: Experiment Results

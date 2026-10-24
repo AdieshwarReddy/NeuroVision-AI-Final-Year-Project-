@@ -24,6 +24,7 @@ data/raw_mat/
 data/zips/
 data/*.zip
 *.mat
+!samples/*.mat
 
 # ---- Large Checkpoints (>50MB GitHub warning limit) ----
 # ResNet-50 weights (~90MB) — download or reproduce via scripts/train.py
